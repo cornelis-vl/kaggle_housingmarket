@@ -3,18 +3,22 @@ import pandas as pd
 import numpy as np
 import os
 import glob
+import pandas as pd
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 
-__version__ = '0.1'
+__version__ = '0.2'
 __author__ = 'CV'
 
 
 # CLASSES AND FUNCTIONS
-def import_data():
-    folder_location = input('> Where have you located the housingmarket folder?')
+def import_data(location=False):
+    if not location:
+        location = input('> Where have you located the housingmarket folder?')
     MAIN_FOLDER = 'housingmarket'
     DESTINATION_FOLDER = 'data'
-    data_folder = os.path.join(folder_location, MAIN_FOLDER, DESTINATION_FOLDER)
+    data_folder = os.path.join(location, MAIN_FOLDER, DESTINATION_FOLDER)
 
     os.chdir(data_folder)
 
@@ -33,7 +37,7 @@ def import_data():
 
     print('Finished importing {} files.'.format(len(files)))
 
-    os.chdir(folder_location)
+    os.chdir(location)
 
     return train, test, macro
 
@@ -95,3 +99,56 @@ def append_data(raw_data, to_append, match_key):
     print("Achieved matching rate: {} pct.".format(match_rate))
 
     return appended_data
+
+
+def select_time_window(input, datecol='timestamp', lookback=48, max_date='2016-05-30'):
+
+    date = list(input[datecol])
+
+    for d in range(0, len(date)):
+        try:
+            date[d] = datetime.strptime(date[d], '%Y-%m-%d')
+        except:
+            continue
+
+    input[datecol] = date
+
+    latest = datetime.strptime(max_date, '%Y-%m-%d')
+    earliest = latest - relativedelta(months=lookback)
+
+    output = input[(input[datecol] <= latest) and input[datecol] > earliest]
+
+    return output
+
+
+def drop_nan_cols(raw_data, nan_rate=100):
+    n_rows = raw_data.shape[0]
+    cols_to_drop = []
+
+    nan_threshold = int(float(nan_rate)/100 * n_rows)
+
+    for col in raw_data.columns:
+        if raw_data[col].isnull().values.sum() >= nan_threshold:
+            cols_to_drop += [col]
+            print('Dropping {}..'.format(col))
+
+    print("Dropped {} columns in total that have more than {} NaN-values.".format(len(cols_to_drop), nan_threshold))
+
+    output_data = raw_data.drop(cols_to_drop, axis=1, inplace=False)
+
+    return output_data
+
+
+def preserve(full_data, date_col='timestamp', additional=[]):
+    if 'pandas.core.frame.DataFrame' not in str(type(full_data)):
+        raw_data = pd.DataFrame(full_data)
+
+    raw_data.set_index('timestamp', drop=False, inplace=True, verify_integrity=True)
+
+    preserved_cols = [date_col]
+    preserved_cols += additional
+
+    preserved_data = raw_data[preserved_cols]
+    stripped_data = raw_data.drop(preserved_cols, axis=1, inplace=False)
+
+    return stripped_data, preserved_data
